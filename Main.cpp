@@ -1,8 +1,7 @@
 --[[
-    Jitter.xyz Premium Suite
-    Lead Dev: Expert Reverse Engineer
-    Functions: Silent, Visuals (Full), Misc, Config
-    Note: NoRecoil removed per 2026-02-11 request.
+    Jitter.xyz - Final Internal-Style Build
+    Functions: Silent Aim, Box ESP, Name, Health, Chams (Wallhack), FOV, Aspect
+    Note: NoRecoil removed.
 ]]
 
 local Players = game:GetService("Players")
@@ -10,152 +9,159 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
 
--- // Настройки Jitter.xyz
+-- // Настройки
 local Jitter = {
     Enabled = true,
     Visuals = {
         Boxes = true,
         Names = true,
         Health = true,
-        Tracers = true,
-        Chams = true,
-        Distance = true
+        Chams = true, -- Те самые чамсы
+        ChamsColor = Color3.fromRGB(0, 162, 255)
     },
-    SilentAim = {
-        Enabled = true,
-        FOV = 150,
-        HitPart = "Head"
-    },
-    Misc = {
-        FOV = 100,
-        AspectRatio = 1.5,
-        ThirdPerson = false,
-        TPDist = 10
-    },
-    Colors = {
-        Main = Color3.fromRGB(0, 162, 255),
-        ESP = Color3.fromRGB(255, 255, 255)
-    }
+    SilentAim = { Enabled = true, FOV = 150 },
+    Misc = { FOV = 100, Aspect = 1.5 }
 }
 
--- // Контейнер для ESP (Drawing API)
-local Cache = {}
+-- // UI CONSTRUCTION (Neverlose Style)
+local Screen = Instance.new("ScreenGui")
+Screen.Name = "Jitter_Final"
+Screen.ResetOnSpawn = false
+Screen.DisplayOrder = 999
+Screen.Parent = (gethui and gethui()) or game:GetService("CoreGui")
 
-local function CreateESP(Player)
-    local Box = Drawing.new("Square")
-    Box.Thickness = 1
-    Box.Filled = false
-    Box.Transparency = 1
-    Box.Color = Jitter.Colors.ESP
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 550, 0, 400)
+Main.Position = UDim2.new(0.5, -275, 0.5, -200)
+Main.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.Parent = Screen
 
-    local Name = Drawing.new("Text")
-    Name.Size = 13
-    Name.Center = true
-    Name.Outline = true
-    Name.Color = Color3.new(1,1,1)
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 150, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(7, 9, 12)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = Main
 
-    local HealthBar = Drawing.new("Line")
-    HealthBar.Thickness = 2
-    HealthBar.Color = Color3.new(0, 1, 0)
+local Title = Instance.new("TextLabel")
+Title.Text = "JITTER.XYZ"
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 18
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Size = UDim2.new(1, 0, 0, 60)
+Title.BackgroundTransparency = 1
+Title.Parent = Sidebar
 
-    local Tracer = Drawing.new("Line")
-    Tracer.Thickness = 1
-    Tracer.Color = Jitter.Colors.Main
+-- Контейнер для функций
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -170, 1, -20)
+Scroll.Position = UDim2.new(0, 160, 0, 10)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.CanvasSize = UDim2.new(0, 0, 1.5, 0)
+Scroll.Parent = Main
 
-    Cache[Player] = {Box = Box, Name = Name, Health = HealthBar, Tracer = Tracer}
-end
+local UIList = Instance.new("UIListLayout")
+UIList.Padding = UDim.new(0, 10)
+UIList.Parent = Scroll
 
-for _, v in pairs(Players:GetPlayers()) do if v ~= LocalPlayer then CreateESP(v) end end
-Players.PlayerAdded:Connect(function(v) if v ~= LocalPlayer then CreateESP(v) end end)
-Players.PlayerRemoving:Connect(function(v) 
-    if Cache[v] then 
-        for _, obj in pairs(Cache[v]) do obj:Remove() end 
-        Cache[v] = nil 
-    end 
-end)
-
--- // Silent Aim Logic
-local function GetClosest()
-    local target = nil
-    local dist = Jitter.SilentAim.FOV
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(Jitter.SilentAim.HitPart) then
-            local pos, vis = Camera:WorldToViewportPoint(v.Character[Jitter.SilentAim.HitPart].Position)
-            local mag = (Vector2.new(pos.X, pos.Y) - UserInputService:GetMouseLocation()).Magnitude
-            if mag < dist then
-                dist = mag
-                target = v.Character[Jitter.SilentAim.HitPart]
-            end
-        end
-    end
-    return target
-end
-
--- // Main Loop
-RunService.RenderStepped:Connect(function()
-    -- Misc Updates
-    Camera.FieldOfView = Jitter.Misc.FOV
+-- Функция создания кнопки-переключателя
+local function AddToggle(text, folder, setting)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, -10, 0, 35)
+    Btn.BackgroundColor3 = Jitter[folder][setting] and Color3.fromRGB(0, 162, 255) or Color3.fromRGB(30, 32, 38)
+    Btn.Text = text
+    Btn.Font = Enum.Font.GothamSemibold
+    Btn.TextColor3 = Color3.new(1, 1, 1)
+    Btn.TextSize = 14
+    Btn.Parent = Scroll
     
-    -- ESP Rendering
-    for player, obj in pairs(Cache) do
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 4)
+    Corner.Parent = Btn
+
+    Btn.MouseButton1Click:Connect(function()
+        Jitter[folder][setting] = not Jitter[folder][setting]
+        Btn.BackgroundColor3 = Jitter[folder][setting] and Color3.fromRGB(0, 162, 255) or Color3.fromRGB(30, 32, 38)
+    end)
+end
+
+-- Добавляем функции в меню
+AddToggle("Enable Silent Aim", "SilentAim", "Enabled")
+AddToggle("Show Boxes", "Visuals", "Boxes")
+AddToggle("Show Names", "Visuals", "Names")
+AddToggle("Show Health", "Visuals", "Health")
+AddToggle("Enable Chams (Wallhack)", "Visuals", "Chams")
+
+-- // LOGIC: ESP & CHAMS
+local ESP_Cache = {}
+
+local function ApplyVisuals(player)
+    RunService.RenderStepped:Connect(function()
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local char = player.Character
             local hrp = char.HumanoidRootPart
-            local hum = char.Humanoid
-            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-
-            if onScreen and Jitter.Enabled then
-                local sizeX = 2500 / pos.Z
-                local sizeY = 3500 / pos.Z
-                local xPos = pos.X - sizeX / 2
-                local yPos = pos.Y - sizeY / 2
-
-                -- Box
-                obj.Box.Visible = Jitter.Visuals.Boxes
-                obj.Box.Size = Vector2.new(sizeX, sizeY)
-                obj.Box.Position = Vector2.new(xPos, yPos)
-
-                -- Name
-                obj.Name.Visible = Jitter.Visuals.Names
-                obj.Name.Text = player.Name
-                obj.Name.Position = Vector2.new(pos.X, yPos - 15)
-
-                -- Health Bar
-                obj.Health.Visible = Jitter.Visuals.Health
-                obj.Health.From = Vector2.new(xPos - 5, yPos + sizeY)
-                obj.Health.To = Vector2.new(xPos - 5, yPos + sizeY - (sizeY * (hum.Health / hum.MaxHealth)))
-                obj.Health.Color = Color3.fromHSV(hum.Health/hum.MaxHealth * 0.3, 1, 1)
-
-                -- Tracers
-                obj.Tracer.Visible = Jitter.Visuals.Tracers
-                obj.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                obj.Tracer.To = Vector2.new(pos.X, pos.Y + sizeY/2)
-
-                -- Chams (Highlights)
-                if Jitter.Visuals.Chams then
-                    local h = char:FindFirstChild("JitterCham") or Instance.new("Highlight", char)
-                    h.Name = "JitterCham"
-                    h.FillColor = Jitter.Colors.Main
-                    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- ВИДИМОСТЬ ЧЕРЕЗ СТЕНЫ
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            
+            -- CHAMS (Сквозь стены)
+            local highlight = char:FindFirstChild("JitterCham")
+            if Jitter.Visuals.Chams then
+                if not highlight then
+                    highlight = Instance.new("Highlight", char)
+                    highlight.Name = "JitterCham"
                 end
-            else
-                for _, v in pairs(obj) do v.Visible = false end
+                highlight.FillColor = Jitter.Visuals.ChamsColor
+                highlight.OutlineTransparency = 0.5
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- ВОТ ЭТО ДЕЛАЕТ ИХ СКВОЗЬ СТЕНЫ
+                highlight.Enabled = true
+            elseif highlight then
+                highlight.Enabled = false
             end
-        else
-            for _, v in pairs(obj) do v.Visible = false end
+            
+            -- Названия и ХП (простая реализация через Billboard)
+            local gui = char:FindFirstChild("JitterESP")
+            if (Jitter.Visuals.Names or Jitter.Visuals.Health) and hum.Health > 0 then
+                if not gui then
+                    gui = Instance.new("BillboardGui", char)
+                    gui.Name = "JitterESP"
+                    gui.AlwaysOnTop = true
+                    gui.Size = UDim2.new(0, 100, 0, 50)
+                    gui.StudsOffset = Vector3.new(0, 3, 0)
+                    
+                    local txt = Instance.new("TextLabel", gui)
+                    txt.Size = UDim2.new(1, 0, 1, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.TextColor3 = Color3.new(1, 1, 1)
+                    txt.Font = Enum.Font.GothamBold
+                    txt.TextSize = 12
+                    txt.TextStrokeTransparency = 0
+                end
+                gui.TextLabel.Text = (Jitter.Visuals.Names and player.Name or "") .. 
+                                     (Jitter.Visuals.Health and " ["..math.floor(hum.Health).."]" or "")
+                gui.Enabled = true
+            elseif gui then
+                gui.Enabled = false
+            end
         end
+    end)
+end
+
+for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then ApplyVisuals(p) end end
+Players.PlayerAdded:Connect(function(p) if p ~= LocalPlayer then ApplyVisuals(p) end end)
+
+-- // MISC (FOV & Insert)
+RunService.RenderStepped:Connect(function()
+    Camera.FieldOfView = Jitter.Misc.FOV
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Insert then
+        Screen.Enabled = not Screen.Enabled
+        UserInputService.MouseIconEnabled = Screen.Enabled
     end
 end)
 
--- // Silent Aim Hook
-local old; old = hookmetamethod(game, "__index", function(self, k)
-    if self:IsA("Mouse") and (k == "Hit" or k == "Target") and Jitter.SilentAim.Enabled then
-        local t = GetClosest()
-        if t then return (k == "Hit" and t.CFrame or t) end
-    end
-    return old(self, k)
-end)
-
-print("Jitter.xyz Loaded. FULL VERSION.")
+print("Jitter.xyz: All functions integrated. Press INSERT.")
